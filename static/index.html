@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plot & Paper · Chatbot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- แสดงคำตอบเป็น Markdown และกรอง HTML อันตราย (ถ้าโหลดไม่ได้จะแสดงเป็นข้อความธรรมดาแทน) -->
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js"></script>
+<style>
+  :root {
+    /* โทนห้องสมุดไม้: กระดาษ · เขียวเข้ม · แดงเลือดหมู · ทองเหลือง */
+    --bg: #f3ebdc;
+    --panel: #fbf7ef;
+    --paper: #fffdf8;
+    --border: #dccdb2;
+    --line: #eadfcb;
+    --text: #2b2420;
+    --muted: #6f6457;
+    --forest: #24443a;
+    --oxblood: #8e3b2f;
+    --brass: #c9a04a;
+    --wood: #7a5634;
+    --chip: #efe6d4;
+    --accent: var(--forest);
+    --error-bg: #fbe9e6; --error-border: #c96a5c; --error-ink: #7d2a20;
+    --warn-bg: #fbf1d9;  --warn-border: #c9a04a; --warn-ink: #6b4a0c;
+    --ok: #2e7a4f; --bad: #b8483a; --idle: #a89f92;
+    --serif: "Noto Serif Thai", Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; display: flex; flex-direction: column;
+    font-family: "IBM Plex Sans Thai", "Noto Sans Thai", Tahoma, sans-serif;
+    background: var(--bg); color: var(--text);
+  }
+
+  /* ---------- หัวเว็บ ---------- */
+  header {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 14px 28px;
+    background: var(--forest); color: #f3ebdc;
+  }
+  .logo { display: flex; align-items: flex-end; gap: 3px; height: 40px; flex-shrink: 0; }
+  .logo span { width: 10px; border-radius: 2px 2px 0 0; }
+  .logo span:nth-child(1) { height: 32px; background: var(--brass); }
+  .logo span:nth-child(2) { height: 40px; width: 12px; background: #f3ebdc; }
+  .logo span:nth-child(3) { height: 29px; background: #b5653a; transform: rotate(10deg); transform-origin: bottom left; }
+  header h1 { margin: 0; font-family: var(--serif); font-weight: 700; font-size: 25px; line-height: 1.15; }
+  header .sub { font-size: 12.5px; color: #c9d6ce; }
+  .status {
+    margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12.5px;
+    border: 1.5px solid var(--brass); border-radius: 99px; padding: 5px 14px; white-space: nowrap;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--idle); }
+  .dot.ok { background: #7fd1a0; } .dot.bad { background: #f08a7c; }
+
+  /* ---------- ชั้นหนังสือ (สร้างจากรายการหนังสือจริงในร้าน) ---------- */
+  .shelf { background: #e9ddc6; padding: 0 28px; overflow: hidden; flex-shrink: 0; }
+  .shelf-row { display: flex; align-items: flex-end; gap: 16px; }
+  .spines { flex: 1; min-width: 0; display: flex; align-items: flex-end; gap: 3px; height: 96px; padding-top: 8px; overflow: hidden; }
+  .shelf-sign { flex-shrink: 0; margin-bottom: 10px; font-family: var(--serif); font-size: 13px; color: var(--muted); }
+  .spine {
+    flex-shrink: 0; border: none; padding: 0; margin: 0; cursor: pointer; border-radius: 3px 3px 0 0;
+    display: flex; align-items: center; justify-content: center; overflow: hidden; font: inherit;
+    transition: transform .15s;
+  }
+  .spine span { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 9.5px; letter-spacing: .2px; white-space: nowrap;
+                max-height: calc(100% - 8px); overflow: hidden; text-overflow: ellipsis; }
+  .spine.band { border-top: 5px solid var(--brass); }
+  .spine:hover, .spine:focus-visible { transform: translateY(-6px); outline: none; }
+  .plank { height: 10px; background: var(--wood); margin: 0 -28px; box-shadow: 0 4px 0 #5e4128; }
+
+  /* ---------- โครงหน้า ---------- */
+  .layout { flex: 1; display: flex; gap: 22px; padding: 22px 28px 24px; min-height: 0; }
+  @media (max-width: 860px) { .layout { flex-direction: column; } .side { max-height: 240px; } }
+  .chat { flex: 2.2; background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+          display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .side { flex: 1; min-width: 270px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; }
+  .panel-title { padding: 12px 18px; border-bottom: 1px solid var(--border); font-family: var(--serif); font-weight: 600; font-size: 18px;
+                 display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .ghost { background: transparent; border: 1px solid var(--forest); border-radius: 4px; padding: 5px 12px;
+           font: inherit; font-family: "IBM Plex Sans Thai", sans-serif; font-size: 13px; font-weight: 400; cursor: pointer; color: var(--forest); }
+  .ghost:hover { background: var(--chip); }
+
+  /* ---------- ข้อความ ---------- */
+  #messages { flex: 1; overflow-y: auto; padding: 22px 18px; display: flex; flex-direction: column; gap: 16px; }
+  .row { display: flex; gap: 12px; align-items: flex-start; }
+  .row.user { justify-content: flex-end; }
+  .row.bot::before {   /* ไอคอนบรรณารักษ์ (หนังสือเปิด) */
+    content: ""; flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%;
+    background: var(--forest) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f3ebdc' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 5c3-1.5 7-1.5 10 1 3-2.5 7-2.5 10-1v14c-3-1.5-7-1.5-10 1-3-2.5-7-2.5-10-1z'/%3E%3Cpath d='M12 6v14'/%3E%3C/svg%3E") center / 18px no-repeat;
+  }
+  .bubble { max-width: min(620px, 82%); font-size: 14.5px; white-space: pre-wrap; word-break: break-word; }
+  .user .bubble { background: var(--forest); color: #f3ebdc; padding: 10px 16px; border-radius: 14px 14px 2px 14px; line-height: 1.6; max-width: min(460px, 82%); }
+  /* คำตอบบอต: บัตรรายการแบบห้องสมุด มีเส้นบรรทัด */
+  .bot .bubble {
+    background: var(--paper) repeating-linear-gradient(var(--paper) 0 27px, var(--line) 27px 28px);
+    background-position: 0 10px; border: 1px solid var(--border); border-top: 3px solid var(--oxblood); border-radius: 2px;
+    padding: 10px 16px 12px; line-height: 28px; box-shadow: 0 2px 0 #e6d9c2;
+  }
+  .bot .bubble.error { background: var(--error-bg); border: 1px solid var(--error-border); border-top: 3px solid var(--error-border); color: var(--error-ink); line-height: 1.6; }
+  .bot .bubble.blocked { background: var(--warn-bg); border: 1px solid var(--warn-border); border-top: 3px solid var(--warn-border); color: var(--warn-ink); line-height: 1.6; }
+  .bubble .md { white-space: normal; }
+  .bubble .md p { margin: 0; }
+  .bubble .md ul, .bubble .md ol { margin: 0; padding-left: 22px; }
+  .bubble .md strong { color: var(--oxblood); }
+  .bubble .md code { background: rgba(0,0,0,.06); padding: 0 4px; border-radius: 3px; }
+  .caret::after { content: "▍"; animation: blink 1s steps(1) infinite; color: var(--oxblood); }
+  @keyframes blink { 50% { opacity: 0; } }
+  .bubble img.thumb { display: block; max-width: 220px; max-height: 220px; border-radius: 6px; margin-top: 6px; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .5px; padding: 0 8px; border-radius: 3px;
+         margin-bottom: 4px; border: 1.5px solid currentColor; line-height: 20px; }
+  .meta { margin: 10px -16px -12px; padding: 8px 16px 10px; font-size: 12px; line-height: 1.6; color: var(--muted);
+          white-space: normal; background: var(--panel); border-top: 1px dashed var(--border); }
+  .meta details summary { cursor: pointer; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .chip { font-size: 11px; background: #fff; border: 1px solid var(--border); border-radius: 99px; padding: 0 8px; }
+  .retry { margin-top: 8px; }
+
+  /* การ์ดหนังสือในคำตอบ */
+  .cards { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; white-space: normal; }
+  .card { position: relative; display: flex; gap: 14px; background: var(--paper); border: 1px solid var(--border);
+          border-radius: 4px; padding: 12px; line-height: 1.5; }
+  .cover { flex-shrink: 0; width: 64px; height: 92px; border-radius: 2px 6px 6px 2px; padding: 6px; display: flex;
+           align-items: center; justify-content: center; text-align: center; font-family: var(--serif);
+           font-weight: 600; font-size: 10.5px; line-height: 1.25; overflow: hidden; }
+  .card .info { min-width: 0; display: flex; flex-direction: column; gap: 1px; padding-right: 92px; }
+  .card .cat { font-size: 11px; letter-spacing: .5px; color: var(--muted); }
+  .card .ti { font-family: var(--serif); font-weight: 700; font-size: 16px; }
+  .card .au { font-size: 12.5px; color: var(--muted); }
+  .card .pr { margin-top: 4px; font-size: 13px; }
+  .card .pr b { font-family: var(--serif); font-size: 18px; color: var(--oxblood); }
+  .stamp { position: absolute; right: 14px; top: 16px; transform: rotate(-8deg); border: 2px solid currentColor;
+           border-radius: 4px; padding: 1px 9px; font-size: 12px; font-weight: 600; letter-spacing: .5px; background: var(--paper); }
+  .stamp.Available, .st.Available { color: var(--ok); }
+  .stamp.Rented, .st.Rented { color: var(--oxblood); }
+  .stamp.Reserved, .st.Reserved { color: #8a5f0c; }
+
+  /* สถานะกำลังประมวลผล */
+  .thinking { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 13px; line-height: 28px; }
+  .thinking .line { display: flex; align-items: center; gap: 8px; }
+  .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--oxblood);
+             border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .steps { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11px; line-height: 1.6; padding-bottom: 4px; }
+  .steps span { padding: 1px 8px; border-radius: 99px; border: 1px solid var(--border); background: var(--panel); }
+  .steps span.on { border-color: var(--oxblood); color: var(--oxblood); font-weight: 600; }
+  .steps span.done { border-color: var(--forest); background: var(--forest); color: #f3ebdc; }
+
+  /* ---------- ช่องพิมพ์ ---------- */
+  form { border-top: 1px solid var(--border); padding: 12px 18px 10px; display: flex; flex-direction: column; gap: 8px;
+         background: #f7f0e3; border-radius: 0 0 6px 6px; }
+  .preview { display: none; align-items: center; gap: 8px; font-size: 12px; color: var(--muted);
+             background: var(--paper); border: 1px dashed var(--border); border-radius: 4px; padding: 6px 10px; }
+  .preview.on { display: flex; }
+  .preview img { width: 36px; height: 36px; object-fit: cover; border-radius: 3px; }
+  .preview button { margin-left: auto; background: none; border: none; color: var(--oxblood); cursor: pointer; font: inherit; font-size: 12px; }
+  .input-row { display: flex; gap: 10px; align-items: center; }
+  .input-row input[type=text] { flex: 1; min-width: 0; padding: 10px 16px; border: 1px solid #b9a88a; border-radius: 4px;
+                                font: inherit; font-size: 14.5px; outline: none; background: var(--paper); color: var(--text); }
+  .input-row input[type=text]:focus { border-color: var(--forest); box-shadow: 0 0 0 2px rgba(36,68,58,.15); }
+  .icon-btn { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; border: 1px solid #b9a88a;
+              background: var(--panel); cursor: pointer; display: grid; place-items: center; }
+  .icon-btn:hover { background: var(--chip); }
+  #send { border: none; border-radius: 4px; padding: 0 20px; height: 44px; background: var(--oxblood); color: #fbf7ef;
+          font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+  #send::after { content: ""; width: 16px; height: 16px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fbf7ef' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3Cpath d='M13 6l6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat; }
+  #send:hover { background: #7a3127; }
+  #send.cancel { background: var(--muted); }
+  #send.cancel::after { display: none; }
+  button:disabled, input:disabled { opacity: .55; cursor: default; }
+  .hint { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+  .hint .over { color: var(--bad); font-weight: 600; }
+
+  /* ---------- แถบข้าง ---------- */
+  .side section { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 16px 18px; font-size: 13.5px; }
+  .side h3 { margin: 0 0 8px; font-family: var(--serif); font-weight: 600; font-size: 16.5px;
+             display: flex; justify-content: space-between; align-items: baseline; }
+  .side h3 small { font-family: "IBM Plex Sans Thai", sans-serif; font-weight: 400; font-size: 12px; color: var(--muted); }
+  #samples { counter-reset: q; }
+  .sample { counter-increment: q; display: flex; gap: 12px; width: 100%; text-align: left; background: transparent;
+            border: none; border-bottom: 1px dashed #d5c6a8; padding: 9px 0; font: inherit; font-size: 13.5px; cursor: pointer; color: var(--text); }
+  .sample:last-child { border-bottom: none; }
+  .sample::before { content: counter(q, decimal-leading-zero); font-family: var(--serif); font-weight: 600; color: var(--oxblood); }
+  .sample:hover { color: var(--forest); text-decoration: underline; }
+  .book-filter { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 6px; border-bottom: 1px solid var(--forest); }
+  .book-filter button { font: inherit; font-size: 12px; border: 1px solid #b9a88a; border-bottom: none; background: transparent;
+                        border-radius: 4px 4px 0 0; padding: 3px 10px; cursor: pointer; color: var(--forest); }
+  .book-filter button.on { background: var(--forest); color: #f3ebdc; border-color: var(--forest); }
+  .book { display: flex; gap: 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px dashed #d5c6a8; cursor: pointer; }
+  .book:last-child { border-bottom: none; }
+  .book:hover .bt { text-decoration: underline; }
+  .book .bt { flex: 1; font-family: var(--serif); font-size: 14px; }
+  .book .bp { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .st { font-size: 10.5px; font-weight: 600; padding: 0 6px; border-radius: 3px; white-space: nowrap; border: 1.5px solid currentColor; }
+  .doc { margin-bottom: 8px; } .doc b { font-weight: 600; } .doc small { color: var(--muted); }
+  label.toggle { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+  label.toggle input { accent-color: var(--forest); width: 16px; height: 16px; flex-shrink: 0; }
+  .foot { font-size: 12px; color: var(--muted); padding: 0 4px 4px; }
+  .drop { outline: 2px dashed var(--oxblood); outline-offset: -8px; }
+
+  @media (max-width: 860px) {
+    header { padding: 12px 16px; }
+    header h1 { font-size: 21px; }
+    header .sub { display: none; }
+    .shelf { padding: 0 16px; } .plank { margin: 0 -16px; }
+    .spines { height: 70px; }
+    .shelf-sign { display: none; }
+    .layout { padding: 14px 16px 16px; gap: 14px; }
+    .side { min-width: 0; }
+    .card .info { padding-right: 0; padding-top: 22px; }
+    .stamp { top: 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .spine { transition: none; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div>
+    <h1>Plot &amp; Paper</h1>
+    <div class="sub">ร้านเช่าหนังสือ · ผู้ช่วยบรรณารักษ์ออนไลน์ · เปิด 10:00–20:00 · LINE @plotandpaper</div>
+  </div>
+  <div class="status" title="สถานะเซิร์ฟเวอร์"><span class="dot" id="dot"></span><span id="status-text">กำลังตรวจสอบ...</span></div>
+</header>
+
+<div class="shelf" aria-label="ชั้นหนังสือในร้าน (กดที่สันเพื่อถามเล่มนั้น)">
+  <div class="shelf-row"><div class="spines" id="spines"></div><div class="shelf-sign">กดที่สันหนังสือเพื่อถามเล่มนั้นได้เลย</div></div>
+  <div class="plank"></div>
+</div>
+
+<div class="layout">
+  <section class="chat" id="chat">
+    <div class="panel-title">บทสนทนา <button class="ghost" id="clear" title="เริ่มบทสนทนาใหม่ (ล้างความจำของ session นี้)">เริ่มหน้าใหม่</button></div>
+    <div id="messages" aria-live="polite"></div>
+    <form id="form">
+      <div class="preview" id="preview">
+        <img id="preview-img" alt=""><span id="preview-name"></span>
+        <button type="button" id="remove-img">ลบรูป</button>
+      </div>
+      <div class="input-row">
+        <button type="button" class="icon-btn" id="attach" title="แนบรูป (jpg/png/webp)" aria-label="แนบรูปปกหรือป้ายชื่อหนังสือ">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#24443a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5l-8.5 8.5a5 5 0 0 1-7-7L14 4.5a3.3 3.3 0 0 1 4.7 4.7L10.2 17.7a1.7 1.7 0 0 1-2.4-2.4L15.5 7.6"/></svg>
+        </button>
+        <input type="file" id="file" accept="image/jpeg,image/png,image/webp" hidden>
+        <input type="text" id="text" placeholder="ถามบรรณารักษ์ เช่น Atomic Habits มีให้เช่าไหม ค่าเช่าเท่าไหร่..." autocomplete="off" aria-label="ข้อความ">
+        <button type="submit" id="send">ส่ง</button>
+      </div>
+      <div class="hint"><span>Enter เพื่อส่ง · ลากรูปมาวางหรือ Ctrl+V ได้</span><span id="counter">0/1000</span></div>
+    </form>
+  </section>
+
+  <aside class="side">
+    <section>
+      <h3>ลองถามดู</h3>
+      <div id="samples"></div>
+    </section>
+    <section>
+      <h3>ชั้นหนังสือในร้าน <small id="book-count"></small></h3>
+      <div class="book-filter" id="book-filter">
+        <button data-s="" class="on">ทั้งหมด</button><button data-s="Available">ว่าง</button>
+        <button data-s="Rented">ถูกเช่า</button><button data-s="Reserved">จองแล้ว</button>
+      </div>
+      <div id="books"><small>กำลังโหลด...</small></div>
+    </section>
+    <section>
+      <label class="toggle"><input type="checkbox" id="show-details" checked> แสดงรายละเอียด (แหล่งอ้างอิง, เวลา, ผลตรวจความปลอดภัย)</label>
+    </section>
+    <section>
+      <h3>คลังความรู้ (RAG)</h3>
+      <div id="docs"><small>กำลังโหลด...</small></div>
+    </section>
+    <div class="foot">เปิดทุกวัน 10:00–20:00 · LINE @plotandpaper</div>
+  </aside>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const messagesEl = $('messages'), form = $('form'), textEl = $('text'), fileEl = $('file');
+const sendBtn = $('send'), attachBtn = $('attach'), counter = $('counter');
+const MAX_CHARS = 1000, MAX_MB = 5, TIMEOUT_MS = 120000;
+const SAMPLES = [
+  'Atomic Habits มีให้เช่าไหม และค่าเช่าเท่าไหร่?',
+  'มีหนังสือหมวด Finance อะไรให้เช่าบ้าง?',
+  'มีหนังสือค่าเช่าไม่เกิน 50 บาทไหม?',
+  'ฉันเช่า 2 เล่มและคืนช้า 4 วัน ต้องเสียค่าปรับรวมเท่าไหร่?',
+  'สามารถต่ออายุหนังสือได้ไหม และต่อได้กี่วัน?',
+];
+
+let history = [];        // [{role, content}] ส่งไปให้ API เพื่อจำบริบท
+let selectedFile = null;
+let controller = null;   // AbortController ของคำขอที่กำลังทำ
+let busy = false;
+
+const STATUS_TH = { Available: 'ว่าง', Rented: 'ถูกเช่า', Reserved: 'จองแล้ว' };
+const STAMP_TH = { Available: 'ว่างให้เช่า', Rented: 'ถูกเช่าแล้ว', Reserved: 'จองแล้ว' };
+const SPINE_COLORS = [['#8e3b2f', '#f3ebdc'], ['#2f3e5c', '#f3ebdc'], ['#c9a04a', '#2b2420'], ['#24443a', '#f3ebdc'],
+                      ['#fbf7ef', '#2b2420'], ['#b5653a', '#f3ebdc'], ['#5b4a6e', '#f3ebdc']];
+let bookIndex = {};      // book_id -> ข้อมูลหนังสือ (ใช้ทำการ์ดหนังสือในคำตอบ)
+function hashStr(s) { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
+function bookColor(b) { return SPINE_COLORS[hashStr(b.book_id || b.title) % SPINE_COLORS.length]; }
+
+// ---------- utilities ----------
+function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+function scroll() { messagesEl.scrollTop = messagesEl.scrollHeight; }
+
+function addRow(role, html, cls = '') {
+  const row = document.createElement('div');
+  row.className = 'row ' + role;
+  row.innerHTML = `<div class="bubble ${cls}">${html}</div>`;
+  messagesEl.appendChild(row); scroll();
+  return row;
+}
+
+// ---------- สถานะเซิร์ฟเวอร์ ----------
+async function checkHealth() {
+  const dot = $('dot'), st = $('status-text');
+  try {
+    const r = await fetch('/health', { cache: 'no-store' });
+    const h = await r.json();
+    if (!h.llm_configured) { dot.className = 'dot bad'; st.textContent = 'ยังไม่ได้ตั้งค่า API key'; return; }
+    dot.className = 'dot ok';
+    st.textContent = `ออนไลน์ · ${h.llm_model}${h.guard_enabled ? ' · Guard เปิด' : ''}`;
+  } catch {
+    dot.className = 'dot bad'; st.textContent = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้';
+  }
+}
+
+async function loadDocs() {
+  try {
+    const r = await fetch('/api/v1/knowledge'); const j = await r.json();
+    $('docs').innerHTML = j.documents.map(d =>
+      `<div class="doc"><b>${esc(d.title)}</b><br><small>${esc(d.doc)} · ${d.chunks} หัวข้อ</small></div>`
+    ).join('') + `<div class="doc"><b>ฐานข้อมูลหนังสือ</b><br><small>${esc(j.books.file)} · ${j.books.total} เรื่อง</small></div>`;
+  } catch { $('docs').innerHTML = '<small>โหลดรายการเอกสารไม่สำเร็จ</small>'; }
+}
+
+// ---------- รายการหนังสือ (คลิกชื่อเพื่อถาม) ----------
+async function loadBooks(status = '') {
+  const box = $('books');
+  try {
+    const r = await fetch('/api/v1/books' + (status ? `?status=${status}` : ''));
+    const j = await r.json();
+    $('book-count').textContent = `(${j.count})`;
+    box.innerHTML = j.books.map(b => `<div class="book" data-title="${esc(b.title)}" title="${esc(b.author)} · ${esc(b.category_th)}">
+        <span class="bt">${esc(b.title)}</span><span class="bp">${b.rental_price_7days_thb}฿</span>
+        <span class="st ${esc(b.rental_status)}">${esc(STATUS_TH[b.rental_status] || b.rental_status)}</span></div>`).join('') || '<small>ไม่มีหนังสือในสถานะนี้</small>';
+  } catch { box.innerHTML = '<small>โหลดรายการหนังสือไม่สำเร็จ</small>'; }
+}
+$('book-filter').onclick = (e) => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  $('book-filter').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === btn));
+  loadBooks(btn.dataset.s);
+};
+$('books').onclick = (e) => {
+  const row = e.target.closest('.book'); if (!row || busy) return;
+  textEl.value = `${row.dataset.title} มีให้เช่าไหม ค่าเช่าเท่าไหร่?`; form.requestSubmit();
+};
+
+// ---------- ชั้นหนังสือด้านบน (สร้างจากรายการหนังสือจริง กดที่สันเพื่อถาม) ----------
+async function loadShelf() {
+  try {
+    const r = await fetch('/api/v1/books'); const j = await r.json();
+    bookIndex = Object.fromEntries(j.books.map(b => [b.book_id, b]));
+    $('spines').innerHTML = j.books.map((b, i) => {
+      const [bg, fg] = bookColor(b), h = hashStr(b.title);
+      const edge = bg === '#fbf7ef' ? ';box-shadow:inset 0 0 0 1.5px #b9a88a' : '';
+      return `<button class="spine${i % 3 === 0 ? ' band' : ''}" data-title="${esc(b.title)}"
+        title="${esc(b.title)} · ${esc(b.author)} · ${b.rental_price_7days_thb}฿ · ${esc(STATUS_TH[b.rental_status] || b.rental_status)}"
+        style="width:${22 + (h % 4) * 4}px;height:${70 + (h % 28)}%;background:${bg};color:${fg}${edge}"><span>${esc(b.title)}</span></button>`;
+    }).join('');
+  } catch { /* ชั้นหนังสือเป็นส่วนตกแต่ง ถ้าโหลดไม่ได้ก็ปล่อยว่างไว้ */ }
+}
+$('spines').onclick = (e) => {
+  const s = e.target.closest('.spine'); if (!s || busy) return;
+  textEl.value = `${s.dataset.title} มีให้เช่าไหม ค่าเช่าเท่าไหร่?`; form.requestSubmit();
+};
+
+// การ์ดหนังสือใต้คำตอบ: แสดงเฉพาะเล่มที่อยู่ในแหล่งอ้างอิงและถูกพูดถึงในคำตอบ (ไม่เกิน 3 เล่ม)
+function bookCardsHtml(p) {
+  const reply = (p.reply || '').toLowerCase();
+  const books = (p.sources || []).filter(s => s.doc === 'books.csv').map(s => bookIndex[s.id])
+    .filter(b => b && reply.includes(b.title.toLowerCase())).slice(0, 3);
+  if (!books.length) return '';
+  return `<div class="cards">${books.map(b => {
+    const [bg, fg] = bookColor(b);
+    return `<div class="card">
+      <div class="cover" style="background:${bg};color:${fg};box-shadow:inset 5px 0 0 rgba(0,0,0,.18),2px 3px 0 #d8c8ac">${esc(b.title)}</div>
+      <div class="info"><span class="cat">${esc(b.book_id)} · ${esc(b.category_th)}</span><span class="ti">${esc(b.title)}</span>
+        <span class="au">${esc(b.author)}</span><span class="pr"><b>${b.rental_price_7days_thb} ฿</b> / ${b.rental_period_days} วัน</span></div>
+      <span class="stamp ${esc(b.rental_status)}">${esc(STAMP_TH[b.rental_status] || b.rental_status)}</span></div>`;
+  }).join('')}</div>`;
+}
+
+// ---------- แนบรูป ----------
+function setFile(file) {
+  if (!file) return;
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { addRow('bot', 'รองรับเฉพาะไฟล์ภาพ .jpg .png และ .webp ค่ะ', 'error'); return; }
+  if (file.size > MAX_MB * 1024 * 1024) { addRow('bot', `ไฟล์ภาพใหญ่เกิน ${MAX_MB} MB กรุณาย่อขนาดก่อนนะคะ`, 'error'); return; }
+  selectedFile = file;
+  $('preview-img').src = URL.createObjectURL(file);
+  $('preview-name').textContent = `${file.name} (${(file.size / 1024).toFixed(0)} KB)`;
+  $('preview').classList.add('on');
+}
+function clearFile() { selectedFile = null; fileEl.value = ''; $('preview').classList.remove('on'); }
+
+attachBtn.onclick = () => fileEl.click();
+fileEl.onchange = () => setFile(fileEl.files[0]);
+$('remove-img').onclick = clearFile;
+textEl.addEventListener('paste', (e) => {
+  const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'));
+  if (item) { e.preventDefault(); setFile(item.getAsFile()); }
+});
+const chatEl = $('chat');
+chatEl.addEventListener('dragover', (e) => { e.preventDefault(); chatEl.classList.add('drop'); });
+chatEl.addEventListener('dragleave', () => chatEl.classList.remove('drop'));
+chatEl.addEventListener('drop', (e) => { e.preventDefault(); chatEl.classList.remove('drop'); setFile(e.dataTransfer.files[0]); });
+
+textEl.addEventListener('input', () => {
+  counter.textContent = `${textEl.value.length}/${MAX_CHARS}`;
+  counter.className = textEl.value.length > MAX_CHARS ? 'over' : '';
+});
+
+// ---------- ส่วนแสดงผลคำตอบ ----------
+const LAYER_TH = { blocklist: 'คำหยาบ', forbidden_word: 'หัวข้อต้องห้าม', injection: 'Prompt injection',
+                   policy_override: 'สั่งเปลี่ยนกฎ/ราคา', privacy: 'ข้อมูลลูกค้าคนอื่น', llama_guard: 'Llama Guard',
+                   canary: 'ป้องกัน prompt รั่ว', vision: 'ตรวจภาพ', pass: 'ผ่าน' };
+
+function detailsHtml(p) {
+  if (!$('show-details').checked) return '';
+  const t = p.timings_ms || {};
+  const parts = [];
+  if (p.sources?.length) {
+    parts.push(`<div>📚 แหล่งอ้างอิง:</div><div class="chips">${p.sources.map(s =>
+      `<span class="chip" title="coverage ${s.coverage}">${esc(s.title)} › ${esc(s.heading)}</span>`).join('')}</div>`);
+  } else if (p.type === 'answer') {
+    parts.push('<div>📚 ไม่พบเอกสารที่เกี่ยวข้องในคลังความรู้</div>');
+  }
+  if (p.image_analysis) parts.push(`<div>🖼️ ผลวิเคราะห์ภาพ: ${esc(p.image_analysis.description)}</div>`);
+  const s = p.safety || {};
+  const sv = ['input', 'output'].filter(k => s[k]).map(k =>
+    `${k === 'input' ? 'ขาเข้า' : 'ขาออก'}: ${s[k].result}${s[k].result === 'unsafe' ? ` (${LAYER_TH[s[k].layer] || s[k].layer} ${s[k].categories.join(',')})` : ''}${s[k].redacted?.length ? ' · ปิดบังข้อมูลส่วนบุคคล' : ''}`);
+  if (sv.length) parts.push(`<div>🛡️ ${sv.join(' | ')}</div>`);
+  const order = ['guard_input', 'vision', 'retrieval', 'llm', 'guard_output'];
+  const tl = order.filter(k => k in t).map(k => `${k} ${(t[k] / 1000).toFixed(2)}s`).join(' · ');
+  parts.push(`<div>⏱️ รวม ${(t.total / 1000).toFixed(2)} วินาที${tl ? ` <small>(${tl})</small>` : ''}</div>`);
+  return `<div class="meta"><details open><summary>รายละเอียด · ${esc(p.request_id)}</summary>${parts.join('')}</details></div>`;
+}
+
+function renderMd(text) {
+  if (window.marked && window.DOMPurify) return DOMPurify.sanitize(marked.parse(text, { breaks: true }));
+  return esc(text).replace(/\n/g, '<br>');
+}
+
+// แถบสถานะที่ขยับตามขั้นตอนจริงที่เซิร์ฟเวอร์ส่งมา (event "stage" ของ /api/v1/chat/stream)
+function showStatus(hasImage) {
+  const STEPS = [['guard_input', 'ตรวจความปลอดภัย'], ...(hasImage ? [['vision', 'วิเคราะห์ภาพ']] : []),
+                 ['retrieval', 'ค้นคลังความรู้'], ['llm', 'สร้างคำตอบ'], ['guard_output', 'ตรวจคำตอบ']];
+  const row = addRow('bot', `<div class="thinking">
+      <div class="line"><span class="spinner"></span><span class="label">กำลังส่งข้อความ...</span><span class="sec">0.0s</span></div>
+      <div class="steps">${STEPS.map(([k, t]) => `<span data-k="${k}">${t}</span>`).join('')}</div></div>`);
+  const start = performance.now();
+  const sec = row.querySelector('.sec'), label = row.querySelector('.label');
+  const timer = setInterval(() => {
+    const s = (performance.now() - start) / 1000;
+    sec.textContent = s.toFixed(1) + 's';
+    if (s > 30 && !label.dataset.slow) { label.dataset.slow = 1; label.textContent += ' (ใช้เวลานานกว่าปกติ)'; }
+  }, 100);
+  return {
+    set(stage, text) {
+      let passed = true;
+      row.querySelectorAll('.steps span').forEach((el) => {
+        if (el.dataset.k === stage) { passed = false; el.className = 'on'; }
+        else el.className = passed ? 'done' : '';
+      });
+      label.textContent = text + '...';
+    },
+    stop() { clearInterval(timer); row.remove(); },
+  };
+}
+
+function setBusy(on) {
+  busy = on;
+  textEl.disabled = on; attachBtn.disabled = on;
+  sendBtn.textContent = on ? 'หยุด' : 'ส่ง';
+  sendBtn.classList.toggle('cancel', on);
+  if (!on) textEl.focus();
+}
+
+// อ่าน Server-Sent Events จาก fetch stream แล้วเรียก onEvent ทีละ event
+async function readSSE(res, onEvent) {
+  const reader = res.body.getReader(), decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop();
+    for (const part of parts) {
+      const line = part.split('\n').find((l) => l.startsWith('data:'));
+      if (!line) continue;
+      try { onEvent(JSON.parse(line.slice(5).trim())); } catch (e) { console.warn('ข้าม event ที่อ่านไม่ได้', part); }
+    }
+  }
+}
+
+// ---------- ส่งข้อความ (สตรีม) ----------
+async function send(text, file) {
+  const fd = new FormData();
+  fd.append('message', text);
+  fd.append('history', JSON.stringify(history));  // ส่งประวัติเองด้วย เผื่อเซิร์ฟเวอร์แบบ serverless ลืม session
+  if (file) fd.append('image', file);
+
+  const status = showStatus(!!file);
+  setBusy(true);
+  controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort('timeout'), TIMEOUT_MS);
+  let row = null, bubble = null, body = null, acc = '', final = null, errEv = null;
+  const ensureBubble = () => {
+    if (row) return;
+    row = addRow('bot', '<div class="md caret"></div>');
+    bubble = row.querySelector('.bubble'); body = bubble.querySelector('.md');
+  };
+
+  try {
+    const res = await fetch('/api/v1/chat/stream', { method: 'POST', body: fd, signal: controller.signal });
+    if (!res.ok || !res.body) {
+      const p = await res.json().catch(() => null);
+      status.stop();
+      showError((p?.error?.message || `เกิดข้อผิดพลาด (HTTP ${res.status})`) + (p?.error?.code ? ` [${p.error.code}]` : ''), text, file);
+      return;
+    }
+    await readSSE(res, (ev) => {
+      if (ev.type === 'stage') status.set(ev.stage, ev.label);
+      else if (ev.type === 'delta') { ensureBubble(); acc += ev.content; body.innerHTML = renderMd(acc); scroll(); }
+      else if (ev.type === 'replace') { ensureBubble(); acc = ev.reply; body.innerHTML = renderMd(acc); }
+      else if (ev.type === 'done') final = ev.result;
+      else if (ev.type === 'error') errEv = ev;
+    });
+    status.stop();
+
+    if (errEv) {
+      if (row) row.remove();
+      showError(`${errEv.message} [${errEv.code}]`, text, file);
+      return;
+    }
+    if (!final) {
+      if (row) row.remove();
+      showError('การเชื่อมต่อถูกตัดกลางทาง กรุณาลองใหม่อีกครั้ง', text, file);
+      return;
+    }
+    if (final.type === 'blocked') {
+      if (row) row.remove();
+      addRow('bot', `<span class="tag">🛡️ ระบบป้องกันทำงาน</span><br>${esc(final.reply)}${detailsHtml(final)}`, 'blocked');
+      return; // ไม่เก็บข้อความที่ถูกบล็อกไว้ในประวัติ
+    }
+    ensureBubble();
+    body.classList.remove('caret');
+    body.innerHTML = renderMd(final.reply);
+    bubble.insertAdjacentHTML('beforeend', bookCardsHtml(final) + detailsHtml(final));
+    scroll();
+    history.push({ role: 'user', content: text || '(ส่งรูปภาพ)' }, { role: 'assistant', content: final.reply });
+    history = history.slice(-12);
+  } catch (err) {
+    status.stop();
+    const reason = controller.signal.reason;
+    if (reason === 'user') {
+      // ผู้ใช้กดหยุดเอง: เก็บข้อความที่ได้มาแล้วไว้ (ถ้ามี) แต่ไม่บันทึกเป็นประวัติ
+      if (row && acc) { body.classList.remove('caret'); bubble.insertAdjacentHTML('beforeend', '<div class="meta">⏹️ หยุดการตอบกลับแล้ว</div>'); }
+      else { if (row) row.remove(); addRow('bot', 'หยุดการตอบกลับแล้วค่ะ', 'blocked'); }
+    } else {
+      if (row) row.remove();
+      if (reason === 'timeout') showError('เซิร์ฟเวอร์ตอบช้าเกินกำหนด (120 วินาที)', text, file);
+      else showError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ตหรือว่าเซิร์ฟเวอร์ทำงานอยู่', text, file);
+      checkHealth();
+    }
+  } finally {
+    clearTimeout(timeout); controller = null; setBusy(false);
+  }
+}
+
+function showError(msg, text, file) {
+  const row = addRow('bot', `<span class="tag">⚠️ เกิดข้อผิดพลาด</span><br>${esc(msg)}<br><button class="ghost retry">ลองใหม่</button>`, 'error');
+  row.querySelector('.retry').onclick = () => { row.remove(); send(text, file); };
+}
+
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (busy) { controller?.abort('user'); return; }
+  const text = textEl.value.trim(), file = selectedFile;
+  if (!text && !file) return;
+  if (text.length > MAX_CHARS) { addRow('bot', `ข้อความยาวเกิน ${MAX_CHARS} ตัวอักษร กรุณาสรุปให้สั้นลงค่ะ`, 'error'); return; }
+  addRow('user', esc(text || '(แนบรูปภาพ)') + (file ? `<img class="thumb" src="${URL.createObjectURL(file)}">` : ''));
+  textEl.value = ''; counter.textContent = `0/${MAX_CHARS}`; clearFile();
+  send(text, file);
+});
+
+$('clear').onclick = async () => {
+  if (busy) return;
+  const btn = $('clear'); btn.disabled = true;
+  try {
+    const r = await fetch('/api/v1/chat/reset', { method: 'POST' });
+    if (!r.ok) throw new Error(r.status);
+    history = []; messagesEl.innerHTML = ''; greet();
+  } catch { addRow('bot', 'เริ่มบทสนทนาใหม่ไม่สำเร็จ กรุณาลองอีกครั้ง', 'error'); }
+  finally { btn.disabled = false; }
+};
+$('samples').innerHTML = SAMPLES.map(s => `<button class="sample">${esc(s)}</button>`).join('');
+$('samples').onclick = (e) => { if (e.target.classList.contains('sample') && !busy) { textEl.value = e.target.textContent; form.requestSubmit(); } };
+
+function greet() { addRow('bot', 'สวัสดีค่ะ ยินดีต้อนรับสู่ Plot & Paper\nสอบถามหนังสือที่อยากเช่า ค่าเช่า สถานะ หรือนโยบายการเช่า/ต่ออายุ/คืนช้าได้เลยค่ะ\nแนบรูปปกหรือป้ายชื่อหนังสือให้ช่วยค้นก็ได้นะคะ'); }
+
+window.addEventListener('online', checkHealth);
+window.addEventListener('offline', () => { $('dot').className = 'dot bad'; $('status-text').textContent = 'ออฟไลน์'; });
+
+greet(); checkHealth(); loadDocs(); loadBooks(); loadShelf();
+setInterval(checkHealth, 30000);
+</script>
+</body>
+</html>

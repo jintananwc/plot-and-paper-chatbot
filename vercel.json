@@ -1,0 +1,27 @@
+{
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": [
+          "main.py",
+          "config.py",
+          "routers/**",
+          "services/**",
+          "prompts/**",
+          "knowledge/**",
+          "static/**",
+          "blocklist.txt",
+          "forbidden_words.txt"
+        ]
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "api/index.py"
+    }
+  ]
+}
